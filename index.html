@@ -36,6 +36,8 @@ Uso educativo y personal.
 
 Desarrollado por:
 Cristian M. Veliz Cano
+
+Your site is live at https://speedtige.github.io/Image-Tools-Web-Suite/
 ===========================================================
 -->
 
@@ -474,6 +476,21 @@ Cristian M. Veliz Cano
 			});
 
 		    // --- Elementos del DOM ---
+		    // Evento de arrastrar y soltar en la pestaña de mezcla
+			const tab2Content = document.getElementById('tab2');
+
+			tab2Content.addEventListener('dragover', (e) => {
+			    e.preventDefault();
+			});
+			tab2Content.addEventListener('drop', (e) => {
+			    e.preventDefault();
+			    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+			        const file = e.dataTransfer.files[0];
+			        if (file.type.startsWith('image/')) {
+			            loadImageToMergeCanvas(file);
+			        }
+			    }
+			});
 		    const dropZone = document.getElementById('drop-zone');
 		    const fileInput = document.getElementById('file-input');
 		    const controlsSection = document.getElementById('controls-section');
@@ -793,6 +810,11 @@ Cristian M. Veliz Cano
 			    const scaleX = canvas.width / rect.width;
 			    const scaleY = canvas.height / rect.height;
 
+			    // Si event es un Touch, usar event.touches[0]
+			    if (event.touches && event.touches.length > 0) {
+			        event = event.touches[0];
+			    }
+
 			    return {
 			        x: (event.clientX - rect.left) * scaleX,
 			        y: (event.clientY - rect.top) * scaleY
@@ -843,6 +865,45 @@ Cristian M. Veliz Cano
 			    isDragging = false;
 			});
 
+			// Para dispositivos táctiles: inicio de toque
+			mergeCanvas.addEventListener('touchstart', (e) => {
+			    if (!fgImage || e.touches.length !== 1) return; // solo un dedo
+			    const touch = e.touches[0];
+			    const pos = getMousePos(mergeCanvas, touch);
+			    const mouseX = pos.x;
+			    const mouseY = pos.y;
+			    if (
+			        mouseX >= fgX &&
+			        mouseX <= fgX + fgImage.width &&
+			        mouseY >= fgY &&
+			        mouseY <= fgY + fgImage.height
+			    ) {
+			        isDragging = true;
+			        offsetX = mouseX - fgX;
+			        offsetY = mouseY - fgY;
+			    }
+			    e.preventDefault(); // evita scroll
+			});
+
+			// Para dispositivos táctiles: movimiento
+			mergeCanvas.addEventListener('touchmove', (e) => {
+			    if (!isDragging || e.touches.length !== 1) return;
+			    const touch = e.touches[0];
+			    const pos = getMousePos(mergeCanvas, touch);
+			    fgX = pos.x - offsetX;
+			    fgY = pos.y - offsetY;
+			    drawMerge();
+			    e.preventDefault(); // evita scroll
+			});
+
+			// Para dispositivos táctiles: fin de toque
+			mergeCanvas.addEventListener('touchend', (e) => {
+			    if (e.touches.length === 0) {
+			        isDragging = false;
+			    }
+			    e.preventDefault(); // evita scroll
+			});
+
 			document.getElementById("download-merge")?.addEventListener("click", () => {
 
 			    mergeCanvas.toBlob(blob => {
@@ -860,6 +921,37 @@ Cristian M. Veliz Cano
 			        URL.revokeObjectURL(url);
 
 			    });
+
+			function loadImageToMergeCanvas(file) {
+			    const reader = new FileReader();
+			    reader.onload = () => {
+			        const img = new Image();
+			        img.onload = () => {
+			            // Si no hay fondo, asigna y ajusta tamaño
+			            if (!bgImage) {
+			                bgImage = img;
+			                mergeCanvas.width = img.width;
+			                mergeCanvas.height = img.height;
+			                
+			                // Dibujar en el canvas
+			                drawMerge();
+
+			                // También actualizar el tamaño del canvas
+			                mergeCanvas.width = img.width;
+			                mergeCanvas.height = img.height;
+			            } else {
+			                // Si ya hay fondo, reemplaza la imagen frontal
+			                fgImage = img;
+			                // Centrar la imagen frontal
+			                fgX = (mergeCanvas.width - img.width) / 2;
+			                fgY = (mergeCanvas.height - img.height) / 2;
+			                drawMerge();
+			            }
+			        };
+			        img.src = reader.result;
+			    };
+			    reader.readAsDataURL(file);
+			}
 
 			});
 
